@@ -32,15 +32,16 @@ $my_graph->set(
 ) 
 or warn $my_graph->error;
 
-open GIF, ">sample11.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample11.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, hrefs => \@hrefs);
 
 open HTML, ">sample11.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample11.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample11.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

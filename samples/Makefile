@@ -1,21 +1,21 @@
 PERL = perl
-.SUFFIXES: .gif .pl .html
+.SUFFIXES: .png .pl .html
 .SILENT:
-LIB = ..
-OPTIONS = -T
+LIB = ../lib
+OPTIONS = -T -I$LIB
 
-GIFS =  sample11.gif sample12.gif sample13.gif sample14.gif \
-	sample15.gif sample16.gif \
-	sample31.gif \
-	sample41.gif \
-	sample51.gif sample52.gif \
-	sample91.gif sample92.gif sample93.gif
+GIFS =  sample11.png sample12.png sample13.png sample14.png \
+	sample15.png sample16.png \
+	sample31.png \
+	sample41.png \
+	sample51.png sample52.png \
+	sample91.png sample92.png sample93.png
 
 all: $(GIFS)
 
-.pl.gif:
+.pl.png:
 	$(PERL) $(OPTIONS) -I$(LIB) $<
 
 clean:
-	rm -f *.gif sample*.html
+	rm -f *.png sample*.html
 

@@ -1,4 +1,8 @@
-Version 1.10	May 30 2000
+Version 1.05	March 15 2001
+- Fixed bug with empty Maps. See BUGS.
+
+
+Version 1.03	May 30 2000
 
 - Renamed to GD::Graph::Map
 - Fixed bug with dispalaying status information for the bar chart
@@ -39,4 +43,4 @@ Version 1.01	August 4 1999
 
 Version 1.00	June 26 1999
 
-- First official reliase.
+- Initial reliase.

@@ -21,6 +21,10 @@ specified by PREFIX) then you can now type:
 
     make install
 
+And when make (or before) make samples:
+
+    make samples
+
 Presuming that the install target is in your PERL5LIB path then you
 are now ready to use GD::Graph::Map. Enjoy!
 

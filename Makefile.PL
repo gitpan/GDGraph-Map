@@ -6,3 +6,10 @@ WriteMakefile(
     'NAME'	   => 'GD::Graph::Map',
     'VERSION_FROM' => 'lib/GD/Graph/Map.pm', # finds $VERSION
 );
+
+sub MY::postamble {
+  '
+samples ::
+	@cd samples && $(MAKE) all
+  ';   
+}

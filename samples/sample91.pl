@@ -17,15 +17,16 @@ $my_graph->set(
 	pie_height => 70,
 );
 
-open GIF, ">sample91.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample91.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%x: %y (%p%)');
 
 open HTML, ">sample91.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample91.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample91.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

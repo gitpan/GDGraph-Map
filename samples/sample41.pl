@@ -25,15 +25,16 @@ $my_graph->set(
 
 $my_graph->set_legend( 'data set 1', 'data set 2' );
 
-open GIF, ">sample41.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample41.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%l');
 
 open HTML, ">sample41.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample41.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample41.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

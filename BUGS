@@ -1,3 +1,7 @@
+FIXED IN 1.05
+! Issued empty Map with new versions of GD::Graph (v1.3 and later)
+
+
 FIXED IN 1.03
 ! For bar chart with two datasets, displayed on top of earch other
   incorrectly display status information.

@@ -1,8 +1,8 @@
 BUGS
 CHANGES
 MANIFEST
-README
 Makefile.PL
+README
 lib/GD/Graph/Map.pm
 samples/Makefile
 samples/index.html

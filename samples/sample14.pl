@@ -45,15 +45,16 @@ $my_graph->set(
 
 $my_graph->set_legend( 'left axis', 'right axis');
 
-open GIF, ">sample14.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample14.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%l:  x=%x   y=%y');
 
 open HTML, ">sample14.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample14.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample14.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

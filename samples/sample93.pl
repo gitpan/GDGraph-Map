@@ -18,16 +18,16 @@ $my_graph->set(
 	suppress_angle => 5, 
 );
 
-open GIF, ">sample93.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample93.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%x:  %y (%p%)');
 
 open HTML, ">sample93.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample93.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample93.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 
-__END__

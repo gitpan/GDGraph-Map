@@ -22,15 +22,16 @@ $my_graph->set(
 	line_width => 3,
 );
 
-open GIF, ">sample51.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample51.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%l');
 
 open HTML, ">sample51.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample51.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample51.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

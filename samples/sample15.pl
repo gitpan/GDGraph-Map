@@ -19,22 +19,23 @@ $my_graph->set(
 	y_max_value => 50,
 	y_tick_number => 10,
 	y_label_skip => 2,
-	overwrite => 2,
+	cumulate => 2,
 	borderclrs => $my_graph->{dclrs},
 	bar_spacing => 4,
 );
 
 $my_graph->set_legend( qw(offset increment more));
 
-open GIF, ">sample15.gif";
-print GIF $my_graph->plot(\@data)->gif;
-close GIF;
+open PNG, ">sample15.png";
+binmode PNG; #only for Windows like platforms
+print PNG $my_graph->plot(\@data)->png;
+close PNG;
 
 $map = new GD::Graph::Map($my_graph, info => '%l:  x=%x   y=%y');
 
 open HTML, ">sample15.html";
-print HTML "<HTML><BODY>\n".
-  ($map->imagemap("sample15.gif", \@data)).
+print HTML "<HTML><BODY BGCOLOR=white>\n".
+  ($map->imagemap("sample15.png", \@data)).
   "</BODY></HTML>";
 close HTML;
 

@@ -4,11 +4,12 @@ use GD::Graph::axestype;
 use GD::Graph::utils qw(:all);
 use strict qw(vars subs refs);
 use vars qw(@EXPORT_OK $VERSION);
+use constant PI => 4 * atan2(1,1);
 require Exporter;
 
 @GD::Graph::Map::ISA = qw(Exporter);
 @EXPORT_OK = qw(set imagemap);
-$VERSION = 1.03;
+$VERSION = 1.05;
 
 #--------------------------------------------- set defaults
 my $ANGLE_OFFSET = 90;
@@ -44,8 +45,8 @@ sub new #($graphs, [%options])
 sub set
 { my $self = shift;
   my %options = @_;
-  map
-  { $self->{$_} = $options{$_} unless exists $No_Tags{lc($_)}
+  map { 
+    $self->{$_} = $options{$_} unless exists $No_Tags{lc($_)}
   } keys %options;
 } #set
 
@@ -68,31 +69,30 @@ sub imagemap($$$) #($file, \@data)
 #--------------------------------------------- make map for Lines graph
 sub linesmap($$) #($file, \@data)
 { my $self = shift;
-  my $file = shift;
-  my $data = shift;
+  my ($file, $data) = @_;
   my $gr = $self->{GDGraph};
   my $lw = int (($self->{linewidth} + 1) / 2);
   my $name = defined $self->{mapName} ? $self->{mapName} : time;
   my $s = "<Map Name=$name>\n";
-  my $ds;
-  foreach $ds (1 .. $gr->{numsets})
-  { $s .= "\t<Area Shape=polygon Coords=\"";
+  foreach (1 .. $gr->{_data}->num_sets) 
+  { my @values = $gr->{_data}->y_values($_);
+    $s .= "\t<Area Shape=polygon Coords=\"";
     my @points;
-    foreach (0 .. $gr->{numpoints})
-    { my ($x, $y) = $gr->val_to_pixel($_ + 1, $data->[$ds][$_], $ds);
+    for (my $i = 0; $i < @values; $i++)
+    { my ($x, $y) = $gr->val_to_pixel($i + 1, $data->[$_][$i], $_);
       push @points, [$x, $y];
       $s .= "$x, @{[$y - $lw]}, ";
-    } #foreach
+    }
     foreach (reverse @points)
     { my ($x, $y) = @$_;
       $s .= "$x, @{[$y + $lw]}, ";
     } #foreach
     chop $s; chop $s;
-    my $href = $self->{lhrefs}->[$ds - 1];
+    my $href = $self->{lhrefs}->[$_ - 1];
     $href = $self->{lhref} unless defined($href);
-    $href =~ s/%l/$gr->{legend}->[$ds - 1]/g;
+    $href =~ s/%l/$gr->{legend}->[$_ - 1]/g;
     my $info = $self->{info};
-    $info =~ s/%l/$gr->{legend}->[$ds - 1]/g;
+    $info =~ s/%l/$gr->{legend}->[$_ - 1]/g;
     $s .= "\" Href=\"$href\" Title=\"$info\" Alt=\"$info\" onMouseOver=\"window.status=\'$info\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
     if ($self->{newWindow} and not $href =~ /javascript:/i)
     { my $s_;
@@ -121,44 +121,38 @@ sub linesmap($$) #($file, \@data)
 #----------------------------------- Make map for Points and LinesPoints graphs
 sub pointsmap($$$) #($file, \@data, $lines)
 { my $self = shift;
-  my $file = shift;
-  my $data = shift;
-  my $lines = shift;
+  my ($file, $data, $lines) = @_;
   my $gr = $self->{GDGraph};
   my $lw = int (($self->{linewidth} + 1) / 2) if $lines;
   my $name = defined $self->{mapName} ? $self->{mapName} : time;
   $gr->check_data($data);
   $gr->setup_coords($data);
   my $s = "<Map Name=$name>\n";
-  my ($ds, $s1);
-  foreach $ds (1 .. $gr->{numsets})
-  { my $type = $gr->pick_marker($ds);
-    my ($i, @points);
-    foreach $i (0 .. $gr->{numpoints})
-    { next if (!defined($$data[$ds][$i]));
-      my ($xp, $yp) = $gr->val_to_pixel($i+1, $$data[$ds][$i], $ds);
+  foreach (1 .. $gr->{_data}->num_sets) 
+  { my @values = $gr->{_data}->y_values($_);
+    my ($s1, @points);
+    for (my $i = 0; $i < @values; $i++)
+    { next unless defined $values[$i];
+      my ($xp, $yp) = (defined($gr->{x_min_value}) and defined($gr->{x_max_value})) ?
+        $gr->val_to_pixel($gr->{_data}->get_x($i), $values[$i], $_) :
+        $gr->val_to_pixel($i + 1, $values[$i], $_);
       if ($lines)
       { push @points, [$xp, $yp];
         $s1 .= "$xp, @{[$yp - $lw]}, ";
       } #if
-      my $l = $xp - $gr->{marker_size};
-      my $r = $xp + $gr->{marker_size};
-      my $b = $yp + $gr->{marker_size};
-      my $t = $yp - $gr->{marker_size};
-      if    ($type <= 4) {$s .= "\t<Area Shape=rect Coords=\"$l, $t, $r, $b\" "}
-      elsif ($type == 5) {$s .= "\t<Area Shape=polygon Coords=\"$l, $yp, $xp, $t, $r, $yp, $xp, $b\" "}
-      elsif ($type >= 6) { $s .= "\t<Area Shape=circle Coords=\"$xp, $yp, @{[2 * $gr->{marker_size}]}\" "}
-      my $href = ${$self->{hrefs}}[$ds - 1][$i];
+      my ($l, $r, $b, $t) = $gr->marker_coordinates($xp, $yp);
+      $s .= "\t<Area Shape=rect Coords=\"$l, $t, $r, $b\" ";
+      my $href = ${$self->{hrefs}}[$_ - 1][$i];
       $href = $self->{href} unless defined($href);
-      $href =~ s/%x/$data->[0][$i]/g; $href =~ s/%y/$data->[$ds][$i]/g;
+      $href =~ s/%x/$data->[0][$i]/g; $href =~ s/%y/$data->[$_][$i]/g;
       $href = $1.(sprintf "%$2f", $data->[0][$i]).$3 if ($href =~ /(^.*)%(\.\d)x(.*&)/);
-      $href = $1.(sprintf "%$2f", $data->[$ds][$i]).$3 if ($href =~ /(^.*)%(\.\d)y(.*$)/);
-      $href =~ s/%l/@{$gr->{legend}}->[$ds - 1]/g;
+      $href = $1.(sprintf "%$2f", $data->[$_][$i]).$3 if ($href =~ /(^.*)%(\.\d)y(.*$)/);
+      $href =~ s/%l/@{$gr->{legend}}->[$_ - 1]/g;
       my $info = $self->{info};
-      $info =~ s/%x/$data->[0][$i]/g; $info =~ s/%y/$data->[$ds][$i]/g;
+      $info =~ s/%x/$data->[0][$i]/g; $info =~ s/%y/$data->[$_][$i]/g;
       $info = $1.(sprintf "%$2f", $data->[0][$i]).$3 if ($info =~ /(^.*)%(\.\d)x(.*&)/);
-      $info = $1.(sprintf "%$2f", $data->[$ds][$i]).$3 if ($info =~ /(^.*)%(\.\d)y(.*$)/);
-      $info =~ s/%l/@{$gr->{legend}}->[$ds - 1]/g;
+      $info = $1.(sprintf "%$2f", $data->[$_][$i]).$3 if ($info =~ /(^.*)%(\.\d)y(.*$)/);
+      $info =~ s/%l/@{$gr->{legend}}->[$_ - 1]/g;
       $s .= "Href=\"$href\" Title=\"$info\" Alt=\"$info\" onMouseOver=\"window.status=\'$info\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
       if ($self->{newWindow} and not $href =~ /javascript:/i)
       { my $s_;
@@ -177,11 +171,11 @@ sub pointsmap($$$) #($file, \@data, $lines)
         $s1 .= "$x, @{[$y + $lw]}, ";
       } #foreach
       chop $s1; chop $s1;
-      my $lhref = $self->{lhrefs}->[$ds - 1];
+      my $lhref = $self->{lhrefs}->[$_ - 1];
       $lhref = $self->{lhref} unless defined($lhref);
-      $lhref =~ s/%l/$gr->{legend}->[$ds - 1]/g;
+      $lhref =~ s/%l/$gr->{legend}->[$_ - 1]/g;
       my $legend = $self->{legend};
-      $legend =~ s/%l/$gr->{legend}->[$ds - 1]/g;
+      $legend =~ s/%l/$gr->{legend}->[$_ - 1]/g;
       $s .= "\t<Area Shape=polygon Coords=\"$s1\" Href=\"$lhref\" Title=\"$legend\" Alt=\"$legend\" onMouseOver=\"window.status=\'$legend\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
       if ($self->{newWindow} and not $lhref =~ /javascript:/i)
       { my $s_;
@@ -193,7 +187,7 @@ sub pointsmap($$$) #($file, \@data, $lines)
       } #if
       $s .= ">\n"; $s1 = "";
     } #if
-  } #foreach
+  }
   $s .= $self->imagelegend($file, $data) if defined($gr->{legend});
   $s .= "</Map>\n";
   unless ($self->{noImgMarkup})
@@ -210,47 +204,55 @@ sub pointsmap($$$) #($file, \@data, $lines)
 #--------------------------------------------- make map for Bar graph
 sub barsmap($$) #($file, \@data)
 { my $self = shift;
-  my $file = shift;
-  my $data = shift;
+  my ($file, $data) = @_;
   my $gr = $self->{GDGraph};
   my $name = defined $self->{mapName} ? $self->{mapName} : time;
   $gr->check_data($data);
   $gr->setup_coords($data);
   my $s = "<Map Name=$name>\n";
-  my $zero = $gr->{zeropoint};
-  my $bar_s = _round($gr->{bar_spacing}/2);
-  foreach (0 .. $gr->{numpoints})
-  { my $bottom = $zero;
-    my ($i, $xp, $t);
-    my @order = $gr->{overwrite} == 2 ? (1 .. $gr->{numsets}) : reverse(1 .. $gr->{numsets});
-    foreach $i (@order)
-    { next unless defined($$data[$i][$_]);
-      ($xp, $t) = $gr->val_to_pixel($_+1, $$data[$i][$_], $i);
-      $s .= "\t<Area Shape=rect Coords=\"";
+  foreach (1 .. $gr->{_data}->num_sets) 
+  { my $bar_s = $gr->{bar_spacing}/2;
+    my @values = $gr->{_data}->y_values($_);
+    for (my $i = 0; $i < @values; $i++) 
+    { my $value = $values[$i];
+      next unless defined $value;
+      my $bottom = $gr->_get_bottom($_, $i);
+      $value = $gr->{_data}->get_y_cumulative($_, $i) if ($gr->{cumulate});
+      my ($xp, $t) = $gr->val_to_pixel($i + 1, $value, $_);
+      my ($l, $r);
       if ($gr->{overwrite})
-      { my $l = int($xp - _round($gr->{x_step}/2)) + $bar_s;
-        my $r = int($xp + _round($gr->{x_step}/2)) - $bar_s;
-	$t -= $zero - $bottom if $gr->{overwrite} == 2;
-        $s .= ($$data[$i][$_] >= 0) ? "$l, $t, $r, $bottom\" " : "$l, $bottom, $r, $t\" ";
-        $bottom = $t - 1;
-      } #if
-      else
-      { my $l = int($xp - $gr->{x_step}/2 + _round(($i-1) * $gr->{x_step}/$gr->{numsets})) + $bar_s;
-        my $r = int($xp - $gr->{x_step}/2 + _round($i *  $gr->{x_step}/$gr->{numsets})) - $bar_s;
-        $t = int $t;
-        $s .= ($$data[$i][$_] >= 0) ? "$l, $t, $r, $zero\" " : "$l, $zero, $r, $t\" ";
-      } #else
-      my $href = ${$self->{hrefs}}[$i - 1][$_];
+      {	$l = int($xp - $gr->{x_step}/2 + $bar_s + 1);
+	$r = int($xp + $gr->{x_step}/2 - $bar_s);
+	if ($gr->{cumulate})
+	{ $bottom = ($gr->val_to_pixel($i + 1, $gr->{_data}->get_y_cumulative($_ - 1, $i), 
+	    $_ - 1))[1] - 1 if $_ > 1;
+	}
+	else
+	{ $bottom = ($gr->val_to_pixel($i + 1, ($gr->{_data}->y_values($_ + 1))[$i], $_ + 1))[1] - 1
+	    if (($value > 0 and ($gr->{_data}->y_values($_ + 1))[$i] > 0) or
+	      ($value < 0 and ($gr->{_data}->y_values($_ + 1))[$i] < 0)) and
+	      $_ != $gr->{_data}->num_sets;
+	}
+      }	
+      else 
+      {	$l = int($xp - $gr->{x_step}/2
+	     + ($_ - 1) * $gr->{x_step}/$gr->{_data}->num_sets + $bar_s + 1);
+	$r = int($xp - $gr->{x_step}/2
+	     + $_ * $gr->{x_step}/$gr->{_data}->num_sets - $bar_s);
+      }
+      $s .= "\t<Area Shape=rect Coords=\"";
+      $s .= $value >= 0 ? "$l, $t, $r, $bottom\" " : "$l, $bottom, $r, $t\" ";
+      my $href = ${$self->{hrefs}}[$_ - 1][$i];
       $href = $self->{href} unless defined($href);
-      $href =~ s/%x/$data->[0][$_]/g; $href =~ s/%y/$data->[$i][$_]/g;
-      $href = $1.(sprintf "%$2f", $data->[0][$_]).$3 if ($href =~ /(^.*)%(\.\d)x(.*$)/);
-      $href = $1.(sprintf "%$2f", $data->[$i][$_]).$3 if ($href =~ /(^.*)%(\.\d)y(.*$)/);
-      $href =~ s/%l/@{$gr->{legend}}->[$i - 1]/g;
+      $href =~ s/%x/$data->[0][$i]/g; $href =~ s/%y/$data->[$_][$i]/g;
+      $href = $1.(sprintf "%$2f", $data->[0][$i]).$3 if ($href =~ /(^.*)%(\.\d)x(.*$)/);
+      $href = $1.(sprintf "%$2f", $data->[$_][$i]).$3 if ($href =~ /(^.*)%(\.\d)y(.*$)/);
+      $href =~ s/%l/@{$gr->{legend}}->[$_ - 1]/g;
       my $info = $self->{info};
-      $info =~ s/%x/$data->[0][$_]/g; $info =~ s/%y/$data->[$i][$_]/g;
-      $info = $1.(sprintf "%$2f", $data->[0][$_]).$3 if ($info =~ /(^.*)%(\.\d)x(.*$)/);
-      $info = $1.(sprintf "%$2f", $data->[$i][$_]).$3 if ($info =~ /(^.*)%(\.\d)y(.*$)/);
-      $info =~ s/%l/@{$gr->{legend}}->[$i - 1]/g;
+      $info =~ s/%x/$data->[0][$i]/g; $info =~ s/%y/$data->[$_][$i]/g;
+      $info = $1.(sprintf "%$2f", $data->[0][$i]).$3 if ($info =~ /(^.*)%(\.\d)x(.*$)/);
+      $info = $1.(sprintf "%$2f", $data->[$_][$i]).$3 if ($info =~ /(^.*)%(\.\d)y(.*$)/);
+      $info =~ s/%l/@{$gr->{legend}}->[$_ - 1]/g;
       $s .= "Href=\"$href\" Title=\"$info\" Alt=\"$info\" onMouseOver=\"window.status=\'$info\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
       if ($self->{newWindow} and not $href =~ /javascript:/i)
       { my $s_;
@@ -262,8 +264,8 @@ sub barsmap($$) #($file, \@data)
         $s .= " onClick=\"window.open(\'\', \'_$name\', \'$s_\'); return true;\"";
       } #if
       $s .= ">\n";
-    } #foreach
-  } #foreach
+    }
+  }
   $s .= $self->imagelegend($file, $data) if defined($gr->{legend});
   $s .= "</Map>\n";
   unless ($self->{noImgMarkup})
@@ -280,29 +282,29 @@ sub barsmap($$) #($file, \@data)
 #--------------------------------------------- make map for Pie graph
 sub piemap($$) #($file, \@data)
 { my $self = shift;
-  my $file = shift;
-  my $data = shift;
+  my ($file, $data) = @_;
   my $gr = $self->{GDGraph};
   my $name = defined $self->{mapName} ? $self->{mapName} : time;
+  my $s = "<Map Name=$name>\n";
   $gr->check_data($data);
   $gr->setup_coords();
+  
+  $ANGLE_OFFSET += $gr->{start_angle};
   my $sum = 0;
-  my $i = 0;
-  $sum += $data->[1][$i++] while $i <= $gr->{numpoints};
-  die "no Total" unless $sum;
-  my $pa = $gr->{start_angle};
-  my $xc = $gr->{xc};
-  my $yc = $gr->{yc};
-  my $PI=4*atan2(1, 1);
-  my ($pb, $j, $oldj);
-  my $s = "<Map Name=$name>\n";
-  foreach $i (0 .. $gr->{numpoints})
-  { $pb = $pa + 360 * $data->[1][$i] / $sum;
-    $s .= "\t<Area Shape=polygon Coords=\"@{[int $xc]}, @{[int $yc]}";
-    $oldj = $pa;
-    for ($j = $pa; $j < $pb; $j += 10)
-    { my $xe = int($xc + $gr->{w} * cos(($ANGLE_OFFSET + $j) * $PI / 180) / 2);
-      my $ye = int($yc + $gr->{h} * sin(($ANGLE_OFFSET + $j) * $PI / 180) / 2);
+  my @values = $gr->{_data}->y_values(1);
+  foreach (@values) {$sum += $_}
+  die "Pie data total is <= 0" unless $sum > 0;
+  my $pb = $self->{start_angle};
+  for (my $i = 0; $i < @values; $i++) {
+    my $pa = $pb;
+    $pb += 360 * $values[$i]/$sum;
+    $s .= "\t<Area Shape=polygon Coords=\"".join(', ', int($gr->{xc}), int($gr->{yc}));
+    my ($xe, $ye) = &GD::Graph::pie::cartesian($gr->{w}/2, $pa, $gr->{xc}, 
+                              $gr->{yc}, $gr->{h}/$gr->{w});
+    my $oldj = $pa;
+    for (my $j = $pa; $j < $pb; $j += 10) {
+      $xe = int($gr->{xc} + $gr->{w} * cos(($ANGLE_OFFSET + $j) * PI / 180) / 2);
+      $ye = int($gr->{yc} + $gr->{h} * sin(($ANGLE_OFFSET + $j) * PI / 180) / 2);
       if ($gr->{'3d'})
       { $s .= ", $xe, $ye" if ($j == $pa and in_front($pa));
         $s .= ", ".$gr->{left}.", ".($ye + $gr->{pie_height}).", ".$gr->{left}.", ".$ye if (($j > 90) and ($oldj < 90));
@@ -311,9 +313,9 @@ sub piemap($$) #($file, \@data)
       } #if
       else { $s .= ", $xe, $ye" }
       $oldj = $j;
-    } #for
-    my $xe = int($xc + $gr->{w} * cos(($ANGLE_OFFSET + $pb) * $PI / 180) / 2);
-    my $ye = int($yc + $gr->{h} * sin(($ANGLE_OFFSET + $pb) * $PI / 180) / 2);
+    }
+    $xe = int($gr->{xc} + $gr->{w} * cos(($ANGLE_OFFSET + $pb) * PI / 180) / 2);
+    $ye = int($gr->{yc} + $gr->{h} * sin(($ANGLE_OFFSET + $pb) * PI / 180) / 2);
     $s .= ", $xe, ".($ye + $gr->{pie_height}) if (in_front($pb) and ($gr->{'3d'}));
     $pa = 100 * $data->[1][$i] / $sum;
     my $href = ${$self->{hrefs}}[$i];
@@ -340,8 +342,7 @@ sub piemap($$) #($file, \@data)
       $s .= " onClick=\"window.open(\'\', \'_$name\', \'$s_\')\"; return true;";
     } #if
     $s .= ">\n";
-    $pa = $pb;
-  } #foreach
+  }
   $s .= "</Map>\n";
   unless ($self->{noImgMarkup})
   { $s .= "<Img UseMap=#$name Src=\"$file\" border=0 Height=@{[$gr->{height}]} Width=@{[$gr->{width}]} ";
@@ -375,23 +376,23 @@ sub imagelegend($$) #($file, \@data)
   my $name = defined $self->{mapName} ? $self->{mapName} : time;
   my $s = '';
   my $xl = $gr->{lg_xs} + $gr->{legend_spacing};
-  my $y = $gr->{lg_ys} + $gr->{legend_spacing} - 1;
+  my $y  = $gr->{lg_ys} + $gr->{legend_spacing} - 1;
   my $i = 0;
   my $row = 1;
   my $x = $xl;
-  foreach (@{$gr->{legend}})
+  foreach my $legend (@{$gr->{legend}})
   { $i++;
-    last if ($i > $gr->{numsets});
+    last if $i > $gr->{_data}->num_sets;
     my $xe = $x;
-    next if (!defined($_) or $_ eq "");
+    next unless defined($legend) && $legend ne "";
     my $lhref = @{$self->{lhrefs}}->[$i - 1];
     $lhref = $self->{lhref} unless defined($lhref);
     $lhref =~ s/%l/$_/g;
-    my $legend = $self->{legend};
+    $legend = $self->{legend};
     $legend =~ s/%l/$_/g;
     my $ye = $y + int($gr->{lg_el_height}/2 - $gr->{legend_marker_height}/2);
-    $s .= "\t<Area Shape=rect Coords=\"$xe, $ye, ".($xe + $gr->{lg_el_width}).", ".($ye + $gr->{legend_marker_height})."\" Href=\"$lhref\" Title=\"$legend\" Alt=\"$legend\" onMouseOver=\"window.status=\'$legend\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
-    if ($self->{newWindow} and $lhref ne $self->{href})
+    $s .= "\t<Area Shape=rect Coords=\"$xe, $ye, ".($xe + $gr->{legend_marker_width}).", ".($ye + $gr->{legend_marker_height})."\" Href=\"$lhref\" Title=\"$legend\" Alt=\"$legend\" onMouseOver=\"window.status=\'$legend\'; return true;\" onMouseOut=\"window.status=\'\'; return true;\"";
+    if ($self->{newWindow} and $lhref ne $self->{href}) #$xe + $gr->{legend_marker_width}
     { my $s_;
       map
       { $s_ .= "$1=".$self->{$_}."," if (($_ =~ /window_(\w*)/i) and ($self->{$_} != 0))
@@ -401,15 +402,14 @@ sub imagelegend($$) #($file, \@data)
       $s .= " onClick=\"window.open(\'\', \'_$name\', \'$s_\'); return true;\"";
     } #if
     $s .= ">\n";
-    $xe += $gr->{legend_marker_width} + $gr->{legend_spacing};
-    my $ys = int($y + $gr->{lg_el_height}/2 - $gr->{lgfh}/2);
+    $xe += $self->{legend_marker_width} + $self->{legend_spacing};
     $x += $gr->{lg_el_width};
     if (++$row > $gr->{lg_cols})
     { $row = 1;
       $y += $gr->{lg_el_height};
       $x = $xl;
-    } #if
-  } #foreach
+    }
+  }
   return $s;
 } #imagelegend
 
@@ -462,10 +462,11 @@ For example create B<GD::Graph::pie> object:
   @data = (["1st","2nd","3rd","4th","5th","6th"],
            [    4,    2,    3,    4,    3,  3.5]);
 
-  $GIFimage = 'Demo.gif';
-  open GIF, '>$GIFimage';
-  print GIF $graph->plot(\@data)->gif;
-  close GIF;
+  $PNGimage = 'Demo.png';
+  open PNG, '>$pngimage';
+  binmode PNG; #only for Windows like platforms
+  print PNG $graph->plot(\@data)->png;
+  close PNG;
 
 Then create B<GD::Graph::Map> object. And set options using set routine, or set it
 in constructor immediately. If it is necessary create hrefs and legend arrays:
@@ -610,7 +611,7 @@ Home page: http://amk.lg.ua/~ra/Map
 
 =head2 Copyright
 
-Copyright (C) 1999-2000 Roman Kosenko.
+Copyright (C) 1999 Roman Kosenko.
 All rights reserved.  This package is free software;
 you can redistribute it and/or modify it under the same
 terms as Perl itself.
